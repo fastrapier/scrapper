@@ -1,22 +1,19 @@
-package main
+package parser
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gocolly/colly/v2"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type ConfiguratorProduct struct {
 	ID       int32
 	Title    string
 	Price    int32
-	PriceEur float32
+	PriceEur float64
 }
 
 type Configuration struct {
@@ -27,16 +24,14 @@ type Configuration struct {
 type Configurator struct {
 	Title          string
 	Price          int32
-	PriceEur       int32
+	PriceEur       float64
 	Link           string
 	Configurations []Configuration
 }
 
-type configuratorsMap map[string]*Configurator
+type ConfiguratorsMap map[string]*Configurator
 
-var euro = 105
-
-func main() {
+func ParseConfigurator(euro float64) ConfiguratorsMap {
 	c := colly.NewCollector()
 	c.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
 
@@ -48,47 +43,14 @@ func main() {
 		log.Printf("Visiting: %s", request.URL.String())
 	})
 
-	configurators := make(configuratorsMap)
+	configurators := make(ConfiguratorsMap)
 
-	configurators.fill(*c)
+	configurators.fill(*c, euro)
 
-	jsonData, err := json.MarshalIndent(configurators, "", "\t")
-
-	if err != nil {
-		log.Fatalf("Err:%s", err)
-	}
-
-	now := time.Now().Format(time.DateTime)
-
-	if _, err := os.Stat("./tmp"); err != nil {
-		if os.IsNotExist(err) {
-			err := os.Mkdir("tmp", 0777)
-
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			panic(err)
-		}
-	}
-
-	jsonFile, err := os.Create("./tmp/configurators-" + now + ".json")
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer jsonFile.Close()
-
-	jsonFile.Write(jsonData)
-	jsonFile.Close()
-
-	//productsCollector := configuratorCollector.Clone()
-	//
-	//productsCollector.Visit("https://sale-server.ru")
+	return configurators
 }
 
-func (configurators configuratorsMap) fill(c colly.Collector) {
+func (configurators ConfiguratorsMap) fill(c colly.Collector, euro float64) {
 
 	c.OnHTML("div.products figure.product-item", func(element *colly.HTMLElement) {
 
@@ -113,7 +75,7 @@ func (configurators configuratorsMap) fill(c colly.Collector) {
 		configurators[link] = &Configurator{
 			Title:          title,
 			Price:          int32(price),
-			PriceEur:       int32(price / euro),
+			PriceEur:       float64(price) / euro,
 			Link:           link,
 			Configurations: make([]Configuration, 0),
 		}
@@ -166,7 +128,7 @@ func (configurators configuratorsMap) fill(c colly.Collector) {
 				ID:       int32(id),
 				Title:    title,
 				Price:    int32(price),
-				PriceEur: float32(price / euro),
+				PriceEur: float64(price) / euro,
 			}
 
 			configuration.ConfiguratorProducts = append(configuration.ConfiguratorProducts, configuratorProduct)
